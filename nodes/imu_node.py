@@ -42,14 +42,21 @@ from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 
 degrees2rad = math.pi/180.0
 imu_yaw_calibration = 0.0
+inertial_only_mode = False
 
 # Callback for dynamic reconfigure requests
 def reconfig_callback(config, level):
-    global imu_yaw_calibration
+    global imu_yaw_calibration, inertial_only_mode
     rospy.loginfo("""Reconfigure request for yaw_calibration: %d""" %(config['yaw_calibration']))
     #if imu_yaw_calibration != config('yaw_calibration'):
     imu_yaw_calibration = config['yaw_calibration']
     rospy.loginfo("Set imu_yaw_calibration to %d" % (imu_yaw_calibration))
+
+    if inertial_only_mode != config['inertial_only_mode']:
+        inertial_only_mode = config['inertial_only_mode']
+        ser.write('#I' + ('1' if inertial_only_mode else '0') + chr(13))
+        rospy.loginfo("Set inertial_only_mode to " + ("1" if inertial_only_mode else "0"))
+
     return config
 
 rospy.init_node("razor_node")
@@ -97,11 +104,9 @@ imuMsg.linear_acceleration_covariance = [
 0 , 0 , 0.04
 ]
 
-default_port='/dev/ttyUSB0'
-port = rospy.get_param('~port', default_port)
-
 #read calibration parameters
-port = rospy.get_param('~port', default_port)
+port = rospy.get_param('~port', '/dev/ttyUSB0')
+frame_id = rospy.get_param('~frame_id', 'base_imu_link')
 
 #accelerometer
 accel_x_min = rospy.get_param('~accel_x_min', -250.0)
@@ -122,6 +127,7 @@ calibration_magn_use_extended = rospy.get_param('~calibration_magn_use_extended'
 magn_ellipsoid_center = rospy.get_param('~magn_ellipsoid_center', [0, 0, 0])
 magn_ellipsoid_transform = rospy.get_param('~magn_ellipsoid_transform', [[0, 0, 0], [0, 0, 0], [0, 0, 0]])
 imu_yaw_calibration = rospy.get_param('~imu_yaw_calibration', 0.0)
+inertial_only_mode = rospy.get_param('~inertial_only_mode', False)
 
 # gyroscope
 gyro_average_offset_x = rospy.get_param('~gyro_average_offset_x', 0.0)
@@ -193,6 +199,8 @@ else:
     ser.write('#ctzY' + str(magn_ellipsoid_transform[2][1]) + chr(13))
     ser.write('#ctzZ' + str(magn_ellipsoid_transform[2][2]) + chr(13))
 
+ser.write('#I' + ('1' if inertial_only_mode else '0') + chr(13))
+
 ser.write('#cgx' + str(gyro_average_offset_x) + chr(13))
 ser.write('#cgy' + str(gyro_average_offset_y) + chr(13))
 ser.write('#cgz' + str(gyro_average_offset_z) + chr(13))
@@ -255,7 +263,7 @@ while not rospy.is_shutdown():
     imuMsg.orientation.z = q[2]
     imuMsg.orientation.w = q[3]
     imuMsg.header.stamp= rospy.Time.now()
-    imuMsg.header.frame_id = 'base_imu_link'
+    imuMsg.header.frame_id = frame_id
     imuMsg.header.seq = seq
     seq = seq + 1
     pub.publish(imuMsg)

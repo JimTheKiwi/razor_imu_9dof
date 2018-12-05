@@ -172,6 +172,8 @@
 
 
   "#I" - Toggle INERTIAL-only mode for yaw computation.
+  "#I0"- DISABLE INERTIAL-only mode (ie use Magnetometer).
+  "#I1"- ENABLE INERTIAL-only mode (ie ignore Magnetometer).
 
 
   "#f" - Request one output frame - useful when continuous output is disabled and updates are
@@ -208,7 +210,7 @@
 // Select your hardware here by uncommenting one line!
 //#define HW__VERSION_CODE 10125 // SparkFun "9DOF Razor IMU" version "SEN-10125" (HMC5843 magnetometer)
 //#define HW__VERSION_CODE 10736 // SparkFun "9DOF Razor IMU" version "SEN-10736" (HMC5883L magnetometer)
-//#define HW__VERSION_CODE 14001 // SparkFun "9DoF Razor IMU M0" version "SEN-14001"
+#define HW__VERSION_CODE 14001 // SparkFun "9DoF Razor IMU M0" version "SEN-14001"
 //#define HW__VERSION_CODE 10183 // SparkFun "9DOF Sensor Stick" version "SEN-10183" (HMC5843 magnetometer)
 //#define HW__VERSION_CODE 10321 // SparkFun "9DOF Sensor Stick" version "SEN-10321" (HMC5843 magnetometer)
 //#define HW__VERSION_CODE 10724 // SparkFun "9DOF Sensor Stick" version "SEN-10724" (HMC5883L magnetometer)
@@ -671,7 +673,7 @@ void setup()
 void loop()
 {
   // Read incoming control messages
- #if HW__VERSION_CODE == 14001
+#if HW__VERSION_CODE == 14001
   // Compatibility fix : if bytes are sent 1 by 1 without being read, available() might never return more than 1...
   // Therefore, we need to read bytes 1 by 1 and the command byte needs to be a blocking read...
   if (LOG_PORT.available() >= 1)
@@ -808,6 +810,7 @@ void loop()
            if (i < 2) LOG_PORT.print(",");
          }
          LOG_PORT.println("]");
+         LOG_PORT.print("DEBUG__NO_DRIFT_CORRECTION (INERTIAL_ONLY_MODE):");LOG_PORT.println(DEBUG__NO_DRIFT_CORRECTION);
          LOG_PORT.println(""); 
          LOG_PORT.print("GYRO_AVERAGE_OFFSET_X:");LOG_PORT.println(GYRO_AVERAGE_OFFSET_X);
          LOG_PORT.print("GYRO_AVERAGE_OFFSET_Y:");LOG_PORT.println(GYRO_AVERAGE_OFFSET_Y);
@@ -934,13 +937,24 @@ void loop()
               GYRO_AVERAGE_OFFSET_Z = value_param;
         }
       }
-	  else if (command == 'I') // Toggle _i_nertial-only mode for yaw computation
+	  else if (command == 'I') // Control _i_nertial-only mode for yaw computation
 	  {
-		DEBUG__NO_DRIFT_CORRECTION = !DEBUG__NO_DRIFT_CORRECTION;
+      char inertial_param = (LOG_PORT.available() ? readChar() : '\n');
+      //TODO Perhaps rename DEBUG__NO_DRIFT_CORRECTION to INERTIAL_ONLY_MODE?
+      //TODO Bug 1: if single line sent in a single packet contains #I toggle then
+      //TODO follow-on command eg "#I#o1" will now ignore the #o1 command.
+      //TODO Bug 2: if individual bytes are sent then '#' 'I' '0' will toggle
+      //TODO and ignore the '0'.
+      if (inertial_param == '0')  // inertial mode off, use magnetometer for yaw
+        DEBUG__NO_DRIFT_CORRECTION = false;
+      else if (inertial_param == '1')  // inertial mode on, ignore magnetometer for yaw
+        DEBUG__NO_DRIFT_CORRECTION = true;
+      else // Including CR/LF if no parameter and '#' from a follow-on command.
+        DEBUG__NO_DRIFT_CORRECTION = !DEBUG__NO_DRIFT_CORRECTION;
 #if DEBUG__USE_ONLY_DMP_M0 == true
-		// Update reference for yaw...
-		initialmagyaw = -MAG_Heading;
-		initialimuyaw = imu.yaw*PI/180.0f;
+      // Update reference for yaw...
+      initialmagyaw = -MAG_Heading;
+      initialimuyaw = imu.yaw*PI/180.0f;
 #endif // DEBUG__USE_ONLY_DMP_M0
 	  }
 #if OUTPUT__HAS_RN_BLUETOOTH == true

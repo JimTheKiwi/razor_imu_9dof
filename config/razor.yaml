@@ -28,6 +28,9 @@ magn_ellipsoid_transform: [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
 # AHRS to robot calibration
 imu_yaw_calibration: 0.0
 
+# Inertial only mode ignores magnetometer inside the firmware
+inertial_only_mode: false
+
 ### gyroscope
 gyro_average_offset_x: 0.0
 gyro_average_offset_y: 0.0
